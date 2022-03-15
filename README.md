@@ -1,2 +1,3 @@
-# turnip
-Web-based frontend for a beets library.
+# Turnip
+
+A web-based music player for your beets library.
