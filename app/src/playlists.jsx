@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Swipeable from 'react-swipeable'
 
-import { Art, post } from './common'
+import { Art, post } from './common.jsx'
 
-import './playlists.styl'
 
 const onClickOutside = callback => {
   const ref = useRef(null)

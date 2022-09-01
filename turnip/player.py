@@ -1,7 +1,10 @@
 import click
 import flask
+import flask_cors
 import requests
 import threading
+import time
+import urllib
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -14,27 +17,38 @@ gst.init(None)
 class Player:
 
     def __init__(self, api, fakesink=False):
-        self.playbin = gst.ElementFactory.make('playbin', 'player')
-        self.playbin.set_property(
-            'video-sink', gst.ElementFactory.make('fakesink', 'fakesink'))
+        make = gst.ElementFactory.make
+        self.playbin = make('playbin', 'player')
+        self.playbin.set_property('video-sink', make('fakesink', 'fakesink'))
         if fakesink:
-            self.playbin.set_property(
-                'audio-sink', gst.ElementFactory.make('fakesink', 'fakesink'))
+            self.playbin.set_property('audio-sink', make('fakesink', 'fakesink'))
+        self.playbin.set_state(gst.State.PAUSED)
 
         self.api = api
-        self.playlist = None
-        self.items = ()
         self.idx = -1
+        self.items = ()
 
         def handle_message(bus, msg):
-            if msg.type == gst.MessageType.ERROR:
-                return print(f'Error: {msg.parse_error()[0]}')
-            if msg.type == gst.MessageType.EOS:
+            print(msg.type.first_value_nick, end=' ')
+            if msg.type == gst.MessageType.HAVE_CONTEXT:
+                print(msg.parse_have_context().get_context_type(), end='')
+            elif msg.type == gst.MessageType.NEED_CONTEXT:
+                pass
+            elif msg.type == gst.MessageType.STREAM_STATUS:
+                print(msg.parse_stream_status().type.value_nick, end='')
+            elif msg.type == gst.MessageType.STATE_CHANGED:
+                delta = msg.parse_state_changed()
+                print(f'{delta.oldstate.value_nick} --> '
+                      f'{delta.newstate.value_nick} ', end='')
+            elif msg.type == gst.MessageType.ERROR:
+                print(f'Error: {msg.parse_error()[0]}', end='')
+            elif msg.type == gst.MessageType.EOS:
                 if 0 <= self.idx < len(self.items):
-                    requests.post(f'{self.api}/actions/{self.items[self.idx]}',
-                                  json=dict(action='eos', playlist=self.playlist))
+                    requests.post(f'{self.api}/actions/{self.items[self.idx]}/',
+                                  json=dict(action='eos'))
                 self.idx += 1
-                self._update_current()
+                self._update_idx()
+            print('')
 
         bus = self.playbin.get_bus()
         bus.add_signal_watch()
@@ -51,32 +65,34 @@ class Player:
             return nsec / 1e9 if ok else None
 
         return dict(
-            volume=self.playbin.get_property('volume'),
             state=self.state.value_nick,
-            position_sec=query(self.playbin.query_position),
-            duration_sec=query(self.playbin.query_duration),
-            playlist=self.playlist,
+            position=query(self.playbin.query_position),
+            duration=query(self.playbin.query_duration),
             items=self.items,
             idx=self.idx,
+            volume=self.playbin.get_property('volume'),
         )
 
-    def _update_current(self):
+    def _update_idx(self):
+        if not 0 <= self.idx < len(self.items):
+            return
+        res = requests.get(f'{self.api}/items/{self.items[self.idx]}/path/')
         st = self.state
         self.playbin.set_state(gst.State.NULL)
-        if 0 <= self.idx < len(self.items):
-            uri = f'{self.api}/items/{self.items[self.idx]}/get/'
-            self.playbin.set_property('uri', uri)
-            self.playbin.set_state(st)
+        self.playbin.set_property(
+            'uri', f'file://{urllib.request.pathname2url(res.text)}')
+        self.playbin.set_state(st)
 
-    def set_playlist(self, items, playlist=None):
-        self.idx = 0
-        self.items = items
-        self.playlist = playlist
-        self._update_current()
-
-    def set_current(self, idx):
-        self.idx = idx
-        self._update_current()
+    def set_items(self, items, idx):
+        needs_update = False
+        if idx is not None:
+            needs_update = needs_update or idx != self.idx
+            self.idx = idx
+        if items is not None:
+            needs_update = needs_update or items != self.items
+            self.items = items
+        if needs_update:
+            self._update_idx()
 
     def set_volume(self, volume):
         self.playbin.set_property('volume', volume)
@@ -87,15 +103,10 @@ class Player:
     def pause(self):
         self.playbin.set_state(gst.State.PAUSED)
 
-    def playpause(self):
-        playing, paused = gst.State.PLAYING, gst.State.PAUSED
-        self.playbin.set_state(paused if self.state == playing else playing)
-
     def seek(self, sec):
-        if 0 <= sec < (self.duration_sec or 0):
-            self.playbin.seek_simple(gst.Format(gst.Format.TIME),
-                                     gst.SeekFlags.FLUSH,
-                                     sec * 10**9)
+        self.playbin.seek_simple(gst.Format(gst.Format.TIME),
+                                 gst.SeekFlags.FLUSH,
+                                 sec * 10**9)
 
     def start(self):
         t = threading.Thread(target=glib.MainLoop().run)
@@ -104,66 +115,52 @@ class Player:
 
 
 app = flask.Flask('turnip')
+
+flask_cors.CORS(app)
+
 player = Player(None)
+
 
 @app.route('/api/v1/player/')
 def player_state():
     return flask.jsonify(player.json)
 
-@app.route('/api/v1/player/playlist/', methods=['POST'])
-def player_playlist():
-    data = flask.request.json
-    player.set_playlist(data['paths'],
-                        data.get('ids', ()),
-                        playlist=data.get('playlist'))
-    player.play()
+@app.route('/api/v1/items/', methods=['POST'])
+def player_items():
+    player.set_items(flask.request.json.get('items'),
+                     flask.request.json.get('idx'))
     return flask.jsonify(player.json)
 
-@app.route('/api/v1/player/current/', methods=['POST'])
-def player_current():
-    player.set_current(flask.request.json['idx'])
-    player.play()
-    return flask.jsonify(player.json)
-
-@app.route('/api/v1/player/volume/', methods=['POST'])
+@app.route('/api/v1/volume/', methods=['POST'])
 def player_volume():
     player.set_volume(flask.request.json['volume'])
     return flask.jsonify(player.json)
 
-@app.route('/api/v1/player/play/', methods=['POST'])
+@app.route('/api/v1/play/', methods=['POST'])
 def player_play():
     player.play()
     return flask.jsonify(player.json)
 
-@app.route('/api/v1/player/pause/', methods=['POST'])
+@app.route('/api/v1/pause/', methods=['POST'])
 def player_pause():
     player.pause()
     return flask.jsonify(player.json)
 
-@app.route('/api/v1/player/playpause/', methods=['POST'])
-def player_playpause():
-    player.playpause()
-    return flask.jsonify(player.json)
-
-@app.route('/api/v1/player/seek/<int:sec>/', methods=['POST'])
+@app.route('/api/v1/seek/<int:sec>/', methods=['POST'])
 def player_seek(sec):
     player.seek(sec)
     return flask.jsonify(player.json)
 
-@app.route('/')
-@app.route('/<path:path>')
-def index(*args, **kwargs):
-    return flask.render_template('index.html')
-
 
 @click.command()
-@click.option('--host', '127.0.0.1')
-@click.option('--port', 11111)
-@click.option('--api', 'http://127.0.0.1:22222/api/v1',
-              'Use this API entry point for music data.')
+@click.option('--host', default='0.0.0.0')
+@click.option('--port', default=11111)
+@click.option('--api', default='http://127.0.0.1:22222/api/v1',
+              help='Use this API entry point for music data.')
 def main(host, port, api):
     player.api = api
     player.start()
+    player.set_items((7094,), 0)
     app.run(host=host, port=port)
 
 

@@ -1,9 +1,12 @@
 import beets.library
 import click
+import datetime
 import flask
+import flask_cors
 import flask_sqlalchemy
 
 app = flask.Flask('turnip')
+flask_cors.CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -74,7 +77,7 @@ class Action(sql.Model):
             items=[int(i.strip()) for i in self.items.split(',')],
         )
 
-@app.route('/api/v1/actions/<int:id>/', methods=['POST']):
+@app.route('/api/v1/actions/<int:id>/', methods=['POST'])
 def create_action(id):
     data = flask.request.json
     sql.session.add(Action(data['action'], datetime.datetime.now(), id))
@@ -93,9 +96,20 @@ def get_items():
         {k: item.get(k) for k in ITEM_KEYS} for item in lib.items()
     ])
 
+@app.route('/api/v1/items/<int:id>/stream/', methods=['GET'])
+def stream(id):
+    lib = app.config['BEETS_LIBRARY']
+    return flask.send_file(lib.get_item(id).path.decode())
+
+@app.route('/api/v1/items/<int:id>/path/', methods=['GET'])
+def get_path(id):
+    return app.config['BEETS_LIBRARY'].get_item(id).path
+
 @app.route('/api/v1/items/<int:id>/', methods=['POST'])
 def update_item(id):
-    return flask.jsonify('hello')
+    lib = app.config['BEETS_LIBRARY']
+    item = lib.get_item(id)
+    return flask.jsonify({k: item.get(k) for k in ITEM_KEYS})
 
 ALBUM_KEYS = ('id', 'album', 'albumartist', 'albumartist_sort', 'genre', 'year')
 
@@ -114,22 +128,25 @@ def get_cover(id):
         return flask.send_file(album.artpath.decode())
     return flask.abort(404)
 
-@app.route('/api/v1/items/<int:id>/get/', methods=['GET'])
-def get_data(id):
-    lib = app.config['BEETS_LIBRARY']
-    return flask.send_file(lib.get_item(id).path.decode())
+
+@app.route('/', methods=['GET'])
+@app.route('/<path:target>', methods=['GET'])
+def index(target=''):
+    return flask.render_template('index.html')
 
 
 @click.command()
-@click.option('--host', '10.20.30.40')
-@click.option('--port', 22222)
+@click.option('--host', default='0.0.0.0')
+@click.option('--port', default=22222)
 @click.option('--debug/--no-debug', default=False)
-@click.option('--beets-db', type=str)
-@click.option('--db', type=str)
-def main(host, port, debug, beets_db, db):
+@click.option('--beets-db', type=str, required=True)
+@click.option('--db', type=str, required=True)
+@click.option('--player', type=str, multiple=True)
+def main(host, port, debug, beets_db, db, player):
     app.config['SQLALCHEMY_ECHO'] = debug
     app.config['SQLALCHEMY_DATABASE_URI'] = db
     app.config['BEETS_LIBRARY'] = beets.library.Library(beets_db)
+    app.config['PLAYERS'] = player
     sql.init_app(app)
     app.run(host=host, port=port, debug=debug)
 
