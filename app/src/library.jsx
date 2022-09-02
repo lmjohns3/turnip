@@ -9,13 +9,15 @@ const Library = ({ items, albums, refresh }) => {
   const dispatch = useContext(audio.Dispatch)
   const [active, setActive] = useState('')
   const [order, setOrder] = useState('artist')
+  const [genre, setGenre] = useState('')
+  const [genres, setGenres] = useState([])
   const [query, setQuery] = useState('')
-  const { search, searchResults, clearSearch, addAllAsync } = useMiniSearch([], {
-    fields: ['title', 'artist', 'album', 'albumartist', 'composer'],
-    storeFields: ['id'],
+  const { search, searchResults, clearSearch, addAllAsync, isIndexing } = useMiniSearch([], {
+    fields: ['title', 'artist', 'album', 'albumartist', 'composer', 'genre'],
+    storeFields: ['id', 'genre'],
     searchOptions: { prefix: true, fuzzy: 0.2 },
   })
-  const matchingItems = searchResults
+  const matchingItems = (searchResults || []).length > 0
       ? searchResults.map(({ id }) => items[id]).filter(item => item)
       : Object.values(items)
   const matchingSingles = matchingItems.filter(item => !item.album_id)
@@ -34,12 +36,20 @@ const Library = ({ items, albums, refresh }) => {
     if (ids.length) dispatch({ type: 'replace', items: ids })
   }
 
-  useEffect(() => { addAllAsync(Object.values(items)) }, [items])
+  useEffect(() => {
+    addAllAsync(Object.values(items))
+    setGenres([...new Set(Object.values(items).map(item => item.genre))].sort())
+  }, [items])
 
-  useEffect(() => { query ? search(query) : clearSearch(query) }, [query])
+  useEffect(() => {
+    if (!query && !genre) return clearSearch()
+    search(query || genre, { filter: genre ? doc => doc.genre === genre : null })
+  }, [genre, query, isIndexing])
 
   return <div className='library'>
-    <ul>{[...matchingAlbums, ...matchingSingles].sort((a, b) => {
+  <ul>{[...matchingAlbums, ...matchingSingles].sort((a, b) => {
+      if (a.items && !b.items) return -1
+      if (!a.items && b.items) return 1
       const x = (a.sortKeys || {})[order]
       const y = (b.sortKeys || {})[order]
       if (x && y) {
@@ -62,6 +72,9 @@ const Library = ({ items, albums, refresh }) => {
       <a onClick={() => reorder('random')}><span className='icon'>🔀</span> <span className='label'>Shuffle</span></a>
       <a onClick={() => reorder('artist')}><span className='icon'>🧑‍🎤️</span> <span className='label'>Artist</span></a>
       <a onClick={() => reorder('title')}><span className='icon'>💿</span> <span className='label'>Title</span></a>
+      <select value={genre} onChange={e => setGenre(e.target.value)}>
+        {genres.map(genre => <option key={genre}>{genre || 'Genre'}</option>)}
+      </select>
       <span className='sep'></span>
       <a onClick={() => randomPlaylist(100)}><span className='icon'>🎲</span> <span className='label'>Random</span></a>
     </nav>
@@ -87,7 +100,9 @@ const Group = ({ group, idx, active, setActive }) => {
     })
   }, [active])
 
-  return <li ref={ref} className={[group.items ? '' : 'single', active ? 'active' : ''].join(' ')}>
+  return <li ref={ref}
+             id={`${group.items ? 'album' : 'item'}-${group.id}`}
+             className={[group.items ? '' : 'single', active ? 'active' : ''].join(' ')}>
     <Art albumId={group.id} onClick={() => setActive(active ? '' : idx)} />
     {active && <div className='buttons'>
       <span className='play' onClick={() => dispatch({ items, type: 'replace' })}>▶️</span>
@@ -95,12 +110,12 @@ const Group = ({ group, idx, active, setActive }) => {
       <span className='edit' onClick={() => setEditing(true)}>✏️</span>
     </div>}
     <span className='title ellipsis' title={group.title || group.album}>{group.title || group.album}</span>
-    <span className='artist ellipsis'>{group.artist || group.albumartist}</span>
+    <span className='artist ellipsis' title={group.artist || group.albumartist}>{group.artist || group.albumartist}</span>
     {editing ? <input value={genre} id={`genre-${idx}`}
                       onBlur={() => setEditing(false)}
                       onChange={e => setGenre(e.target.value)} />
              : <span className='genre ellipsis'>{group.genre}</span>}
-    {false && <ol>{(group.items || [group]).map(
+    {active && <ol class='tracks'>{(group.items || [group]).map(
       item => <li className='track ellipsis' key={item.id}>{item.title}</li>
     )}</ol>}
   </li>
