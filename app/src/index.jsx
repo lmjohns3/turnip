@@ -46,11 +46,10 @@ const App = () => {
   const items = useCachedData('items')
 
   const [view, setView] = useState('library')
+
   const domAudio = useRef(null)
-  const api = {
-    mighty: 'http://10.20.30.42:44444/api/v1',
-  }[(new URLSearchParams(window.location.search)).get('t')]
-  const [state, dispatch] = api ? audio.useServer(api) : audio.useBrowser(domAudio)
+  const [state, dispatch] =
+    Turnip?.player ? audio.useServer(Turnip?.player) : audio.useBrowser(domAudio)
 
   // Cross-link albums with their corresponding items.
   useEffect(() => {

@@ -59,9 +59,9 @@ const Library = ({ items, albums, refresh }) => {
         }
       }
       return 0
-    }).map(x => {
-      const k = `${x.which}-${x.id}`
-      return <Group key={k} idx={k} group={x} active={active === k} setActive={setActive} />
+    }).map(group => {
+      const k = `${group.which}-${group.id}`
+      return <Group key={k} idx={k} group={group} active={active === k} setActive={setActive} />
     })}</ul>
     <nav>
       <input type='text'
@@ -115,8 +115,8 @@ const Group = ({ group, idx, active, setActive }) => {
                       onBlur={() => setEditing(false)}
                       onChange={e => setGenre(e.target.value)} />
              : <span className='genre ellipsis'>{group.genre}</span>}
-    {active && <ol class='tracks'>{(group.items || [group]).map(
-      item => <li className='track ellipsis' key={item.id}>{item.title}</li>
+    {active && <ol className='tracks'>{(group.items || [group]).map(
+      item => <li className='track ellipsis' key={`${group.id}-${item.id}`} title={item.title}>{item.title}</li>
     )}</ol>}
   </li>
 }

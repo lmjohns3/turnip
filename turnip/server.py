@@ -4,6 +4,7 @@ import datetime
 import flask
 import flask_cors
 import flask_sqlalchemy
+import re
 
 app = flask.Flask('turnip')
 flask_cors.CORS(app)
@@ -130,9 +131,9 @@ def get_cover(id):
 
 
 @app.route('/', methods=['GET'])
-@app.route('/<path:target>', methods=['GET'])
-def index(target=''):
-    return flask.render_template('index.html')
+@app.route('/<path:player>', methods=['GET'])
+def index(player=''):
+    return flask.render_template('index.html', player=app.config['PLAYERS'].get(player, ''))
 
 
 @click.command()
@@ -146,7 +147,12 @@ def main(host, port, debug, beets_db, db, player):
     app.config['SQLALCHEMY_ECHO'] = debug
     app.config['SQLALCHEMY_DATABASE_URI'] = db
     app.config['BEETS_LIBRARY'] = beets.library.Library(beets_db)
-    app.config['PLAYERS'] = player
+    app.config['PLAYERS'] = {}
+    for p in player:
+        m = re.match('^(?P<key>[a-z-]+)=(?P<target>[\w\d\.:/-]+)$', p)
+        if m:
+            print('Registered player', m.group('key'), m.group('target'))
+            app.config['PLAYERS'][m.group('key')] = m.group('target')
     sql.init_app(app)
     app.run(host=host, port=port, debug=debug)
 
