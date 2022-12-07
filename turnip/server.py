@@ -70,18 +70,17 @@ class Action(sql.Model):
     action = sql.Column(sql.String, nullable=False)
     when = sql.Column(sql.DateTime, nullable=False)
     item_id = sql.Column(sql.Integer, nullable=False)
+    position_sec = sql.Column(sql.Integer, nullable=False, default=-1)
 
-    def to_dict(self):
-        return dict(
-            id=self.id,
-            title=self.title,
-            items=[int(i.strip()) for i in self.items.split(',')],
-        )
 
-@app.route('/api/v1/actions/<int:id>/', methods=['POST'])
-def create_action(id):
+@app.route('/api/v1/actions/<int:item_id>/', methods=['POST'])
+def create_action(item_id):
     data = flask.request.json
-    sql.session.add(Action(data['action'], datetime.datetime.now(), id))
+    sql.session.add(Action(
+        action=data['action'],
+        when=datetime.datetime.now(),
+        position_sec=data.get('position_sec', -1),
+        item_id=item_id))
     sql.session.commit()
 
 
@@ -141,11 +140,11 @@ def index(player=''):
 @click.option('--port', default=22222)
 @click.option('--debug/--no-debug', default=False)
 @click.option('--beets-db', type=str, required=True)
-@click.option('--db', type=str, required=True)
+@click.option('--turnip-db', type=str, required=True)
 @click.option('--player', type=str, multiple=True)
-def main(host, port, debug, beets_db, db, player):
+def main(host, port, debug, beets_db, turnip_db, player):
     app.config['SQLALCHEMY_ECHO'] = debug
-    app.config['SQLALCHEMY_DATABASE_URI'] = db
+    app.config['SQLALCHEMY_DATABASE_URI'] = turnip_db
     app.config['BEETS_LIBRARY'] = beets.library.Library(beets_db)
     app.config['PLAYERS'] = {}
     for p in player:
