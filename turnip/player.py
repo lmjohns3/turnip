@@ -1,6 +1,7 @@
 import click
 import flask
 import flask_cors
+import logging
 import requests
 import threading
 import time
@@ -16,7 +17,7 @@ gst.init(None)
 
 class Player:
 
-    def __init__(self, api, fakesink=False):
+    def __init__(self, turnip=None, fakesink=False):
         make = gst.ElementFactory.make
         self.playbin = make('playbin', 'player')
         self.playbin.set_property('video-sink', make('fakesink', 'fakesink'))
@@ -24,31 +25,30 @@ class Player:
             self.playbin.set_property('audio-sink', make('fakesink', 'fakesink'))
         self.playbin.set_state(gst.State.PAUSED)
 
-        self.api = api
+        self.turnip = turnip
         self.idx = -1
         self.items = ()
 
         def handle_message(bus, msg):
-            print(msg.type.first_value_nick, end=' ')
+            args = [msg.type.first_value_nick]
             if msg.type == gst.MessageType.HAVE_CONTEXT:
-                print(msg.parse_have_context().get_context_type(), end='')
+                args.append(msg.parse_have_context().get_context_type())
             elif msg.type == gst.MessageType.NEED_CONTEXT:
                 pass
             elif msg.type == gst.MessageType.STREAM_STATUS:
-                print(msg.parse_stream_status().type.value_nick, end='')
+                args.append(msg.parse_stream_status().type.value_nick)
             elif msg.type == gst.MessageType.STATE_CHANGED:
-                delta = msg.parse_state_changed()
-                print(f'{delta.oldstate.value_nick} --> '
-                      f'{delta.newstate.value_nick} ', end='')
+                d = msg.parse_state_changed()
+                args.append(f'{d.oldstate.value_nick} > {d.newstate.value_nick}')
             elif msg.type == gst.MessageType.ERROR:
-                print(f'Error: {msg.parse_error()[0]}', end='')
+                args.append(f'Error: {msg.parse_error()[0]}')
             elif msg.type == gst.MessageType.EOS:
                 if 0 <= self.idx < len(self.items):
-                    requests.post(f'{self.api}/actions/{self.items[self.idx]}/',
+                    requests.post(f'{self.turnip}/actions/{self.items[self.idx]}/',
                                   json=dict(action='eos'))
                 self.idx += 1
                 self._update_idx()
-            print('')
+            logging.debug(' '.join(args))
 
         bus = self.playbin.get_bus()
         bus.add_signal_watch()
@@ -76,7 +76,8 @@ class Player:
     def _update_idx(self):
         if not 0 <= self.idx < len(self.items):
             return
-        res = requests.get(f'{self.api}/items/{self.items[self.idx]}/path/')
+        res = requests.get(f'{self.turnip}/items/{self.items[self.idx]}/path/')
+        print('got', res.text)
         st = self.state
         self.playbin.set_state(gst.State.NULL)
         self.playbin.set_property(
@@ -114,11 +115,10 @@ class Player:
         t.start()
 
 
+player = Player()
+
 app = flask.Flask('turnip')
-
 flask_cors.CORS(app)
-
-player = Player(None)
 
 
 @app.route('/api/v1/player/')
@@ -155,12 +155,11 @@ def player_seek(sec):
 @click.command()
 @click.option('--host', default='0.0.0.0')
 @click.option('--port', default=11111)
-@click.option('--api', default='http://127.0.0.1:22222/api/v1',
-              help='Use this API entry point for music data.')
-def main(host, port, api):
-    player.api = api
+@click.option('--turnip', default='http://127.0.0.1:22222/api/v1',
+              help='Get music data from this turnip server.')
+def main(host, port, turnip):
+    player.turnip = turnip
     player.start()
-    player.set_items((7094,), 0)
     app.run(host=host, port=port)
 
 
