@@ -9,8 +9,7 @@ const Dispatch = React.createContext()
 const fadeVolumeTo = (aud, target) => {
   console.log('setting audio volume to', Math.round(1000 * target) / 1000)
   const msec = 500
-  const steps = 10
-  const final = target <= 0 ? 1e-4 : target > 1 ? 1 : target
+  const steps = 3
   const delta = (target - aud.volume) / steps
   const inc = () => {
     aud.volume += delta
@@ -31,14 +30,14 @@ const useBrowser = audioRef => {
     const load = () => {
       aud.src = ''
       aud.currentTime = 0
-      aud.volume = 0.5
       if (playable(state.idx)) {
+        state.volume = 0.5
         aud.src = `/api/v1/items/${state.items[state.idx]}/stream/`
         aud.onended = () => dispatch({ type: 'next' })
         musicMeta.fetchFromUrl(aud.src, { duration: false, skipCovers: true })
                  .then(meta => {
                    const ratio = meta?.common?.replaygain_album_gain?.ratio
-                   if (ratio) fadeVolumeTo(aud, (1 + ratio) / 2)
+                   if (ratio) fadeVolumeTo(aud, ratio)
                  })
       } else {
         state.state = ''
@@ -49,7 +48,9 @@ const useBrowser = audioRef => {
 
     if (action.type === 'sync') return { ...state, ...action.update }
 
-    if (action.type === 'pause') {
+    if (action.type === 'volume') {
+      state.volume = aud.volume = action.volume
+    } else if (action.type === 'pause') {
       state.state === 'playing' ? aud.pause() : aud.play()
     } else if (action.type === 'seek') {
       state.position = aud.currentTime = state.duration * action.fraction
@@ -75,6 +76,12 @@ const useBrowser = audioRef => {
 
     return { ...state }
   }, { idx: -1, items: [], state: '', position: 0, duration: 0 })
+
+  useEffect(() => {
+    const aud = audioRef.current
+    if (!aud) return
+    dispatch({ type: 'volume', volume: aud.volume })
+  }, [audioRef.current?.volume])
 
   useEffect(() => {
     const aud = audioRef.current
@@ -113,7 +120,10 @@ const useServer = api => {
 
     if (action.type === 'sync') return { ...state, ...action.update }
 
-    if (action.type === 'pause') {
+    if (action.type === 'volume') {
+      state.volume = action.volume
+      post(`${api}/volume/`, { volume: state.volume })
+    } else if (action.type === 'pause') {
       state.state === 'playing' ? post(`${api}/pause/`) : post(`${api}/play/`)
     } else if (action.type === 'seek') {
       post(`${api}/seek/${Math.round(state.duration * action.fraction)}/`)

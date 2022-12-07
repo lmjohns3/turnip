@@ -124,6 +124,9 @@ const App = () => {
         <span className='next' onClick={() => dispatch({ type: 'next' })}>⏭️</span>
         <Art key={`mini-art-${current.which}-${current.id}`} albumId={current.album_id} />
         <span className='title ellipsis' onClick={() => setView('player')}>{current.title}</span>
+        <input className='volume' name='volume' type='range'
+               value={state.volume} min={0.0} max={1.0} step={0.01}
+               onChange={e => dispatch({ type: 'volume', volume: e.target.value})} />
       </div>}
     </nav>
     {view === 'player' && <Player items={items} player={state} />}
