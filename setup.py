@@ -12,7 +12,7 @@ setuptools.setup(
         'turnip-server = turnip.server:main',
         'turnip-player = turnip.player:main',
     ]),
-    install_requires=['beets', 'flask-sqlalchemy'],
+    install_requires=['beets', 'click', 'flask', 'flask-cors', 'flask-sqlalchemy', 'requests'],
     keywords='music player database web',
     license='MIT',
     long_description=open(readme).read(),
