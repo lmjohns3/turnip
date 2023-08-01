@@ -24,6 +24,7 @@ class Player:
         if fakesink:
             self.playbin.set_property('audio-sink', make('fakesink', 'fakesink'))
         self.playbin.set_state(gst.State.PAUSED)
+        self.playbin.set_property('volume', 0.2)
 
         self.turnip = turnip
         self.idx = -1
@@ -133,7 +134,7 @@ def player_items():
 
 @app.route('/api/v1/volume/', methods=['POST'])
 def player_volume():
-    player.set_volume(flask.request.json['volume'])
+    player.set_volume(float(flask.request.json['volume']))
     return flask.jsonify(player.json)
 
 @app.route('/api/v1/play/', methods=['POST'])
