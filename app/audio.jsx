@@ -1,9 +1,19 @@
-import React, { useEffect, useReducer, useState } from 'react'
-import * as musicMeta from 'music-metadata-browser';
+import React, { createContext, useContext, useEffect, useReducer, useState } from 'react'
+import { create } from 'zustand' 
+import * as musicMeta from 'music-metadata-browser'
 
 import { post } from './common.jsx'
 
-const Dispatch = React.createContext()
+const context = React.createContext()
+
+const state = create(set => ({
+  volume: 0,
+  items: [],
+  idx: -1,
+  state: '',
+  position: -1,
+  duration: -1,
+}))
 
 
 const fadeVolumeTo = (aud, target) => {
@@ -162,4 +172,7 @@ const useServer = api => {
 }
 
 
-export default { Dispatch, useBrowser, useServer }
+const useAudio = () => useContext(context)
+
+
+export default { useBrowser, useServer, useAudio }

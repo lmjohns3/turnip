@@ -1,8 +1,9 @@
-import localforage from 'localforage'
 import React, { useEffect, useRef, useState } from 'react'
-import ReactDOM from 'react-dom'
+import ReactDOM from 'react-dom/client'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 
 import audio from './audio.jsx'
+import db from './db.jsx'
 import { Art } from './common.jsx'
 import Library from './library.jsx'
 import Player from './player.jsx'
@@ -11,42 +12,7 @@ import Playlists from './playlists.jsx'
 import './index.styl'
 
 
-const useCachedData = which => {
-  const key = `beets-library-${which}`
-  const [elements, setElements] = useState({})
-
-  const refresh = () => {
-    console.log('refreshing music database...')
-    fetch(`/api/v1/${which}`)
-      .then(res => res.json())
-      .then(els => {
-        const m = Object.fromEntries(els.map(el => ([el.id, { ...el, which }])))
-        localforage.setItem(key, m)
-        setElements(m)
-      })
-  }
-
-  useEffect(() => {
-    localforage.getItem(key).then(value => {
-      if (value) {
-        setElements(value)
-        setTimeout(refresh, 67890)
-      } else {
-        refresh()
-      }
-    })
-  }, [])
-
-  return elements
-}
-
-
 const App = () => {
-  const albums = useCachedData('albums')
-  const items = useCachedData('items')
-
-  const [view, setView] = useState('library')
-
   const domAudio = useRef(null)
   const [state, dispatch] =
     Turnip?.player ? audio.useServer(Turnip?.player) : audio.useBrowser(domAudio)
@@ -129,11 +95,26 @@ const App = () => {
                onChange={e => dispatch({ type: 'volume', volume: e.target.value})} />
       </div>}
     </nav>
-    {view === 'player' && <Player items={items} player={state} />}
-    {view === 'library' && <Library items={items} albums={albums} />}
-    {view === 'playlists' && <Playlists items={items} />}
   </audio.Dispatch.Provider>
 }
 
 
-ReactDOM.render(<App />, document.getElementById('root'))
+ReactDOM.createRoot(
+  document.getElementById('root')
+).render(
+  <RouterProvider
+    router={createBrowserRouter([{
+      path: '/',
+      //error: null,
+      loader: () => {
+        console.log('refreshing music database...')
+        fetch('/api/v1/items').then(res => res.json()).then(db.items.bulkAdd)
+        fetch('/api/v1/albums').then(res => res.json()).then(db.albums.bulkAdd)
+      },
+      element: <App />,
+      children: [
+        { path: '/player', element: <Player /> },
+        { path: '/library', element: <Library /> },
+        { path: '/playlists', element: <Playlists /> },
+    ]}])} />
+)
