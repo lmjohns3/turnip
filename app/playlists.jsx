@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react'
-import Swipeable from 'react-swipeable'
 
 import { Art, post } from './common.jsx'
 
@@ -20,7 +19,7 @@ const onClickOutside = callback => {
   return ref
 }
 
-const Playlists = ({ libraryItems }) => {
+export const Playlists = ({ libraryItems }) => {
   const [player, setPlayer] = useState({})
   const [playlists, setPlaylists] = useState([])
 
@@ -101,5 +100,3 @@ const Playlist = ({ libraryItems, isPlaying, playlist, refresh }) => {
     </div>
   </div>
 }
-
-export default Playlists

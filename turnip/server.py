@@ -86,8 +86,7 @@ def create_action(item_id):
 
 # Beets library / data.
 
-ITEM_KEYS = ('id', 'album_id', 'title', 'genre', 'year',
-             'artist', 'artist_sort', 'track', 'disc')
+ITEM_KEYS = ('id', 'album_id', 'track', 'disc', 'title', 'genre', 'year', 'artist', 'artist_sort', 'composer')
 
 @app.route('/api/v1/items/', methods=['GET'])
 def get_items():
@@ -111,7 +110,7 @@ def update_item(id):
     item = lib.get_item(id)
     return flask.jsonify({k: item.get(k) for k in ITEM_KEYS})
 
-ALBUM_KEYS = ('id', 'album', 'albumartist', 'albumartist_sort', 'genre', 'year')
+ALBUM_KEYS = ('id', 'album', 'album_sort', 'albumartist', 'albumartist_sort', 'genre', 'year', 'composer')
 
 @app.route('/api/v1/albums/', methods=['GET'])
 def get_albums():
@@ -130,9 +129,9 @@ def get_cover(id):
 
 
 @app.route('/', methods=['GET'])
-@app.route('/<path:player>', methods=['GET'])
-def index(player=''):
-    return flask.render_template('index.html', player=app.config['PLAYERS'].get(player, ''))
+@app.route('/<path:path>', methods=['GET'])
+def index(path=''):
+    return flask.render_template('index.html')
 
 
 @click.command()

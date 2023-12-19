@@ -5,17 +5,17 @@
   margin 0
   padding 0
 
-:root, input, select, option
+:root, button, input, option, select
   background #333
   color #ccc
   font-family 'Inter', sans-serif
   @supports (font-variation-settings: normal)
     font-family 'Inter var', sans-serif
-  font-size clamp(0.9rem, calc(0.9rem + ((1vw - 0.2rem) * 1.2857)), 1.8rem)
+  font-size clamp(1rem, calc(1rem + 0.5 * (1vw - 0.25rem)), 1.5rem)
   line-height 1.2
 
-input, select, option
-  font-size 0.9em
+a
+  text-decoration none
 
 nav
   align-items center
@@ -37,6 +37,32 @@ nav
 
   .sep
     flex 1 1 auto
+
+  &.top
+    a
+      color inherit
+      font-size 1.5em
+    button
+      font-size 1.5em
+
+  .art
+    border-radius 0.1em
+    flex 0 0 auto
+    height 1.5em
+    width 1.5em
+
+  .prev
+  .next
+    @media (max-device-width: 480px)
+      display none
+
+  .output
+    font-size 1.5em
+    font-weight bold
+
+button
+  background transparent
+  border none
 
 .title
   font-weight bold
@@ -142,28 +168,6 @@ nav
     .duration
       right 0
 
-.mini-player
-  align-items center
-  display flex
-  gap 0.3em
-  height 100%
-  padding 0
-
-  .art
-    border-radius 0.1em
-    flex 0 0 auto
-    height 1em
-    width 1em
-
-  .prev
-  .next
-    @media (max-device-width: 480px)
-      display none
-
-  .artist
-  .title
-    font-size 0.83333em
-
 .library
   nav
     bottom 0
@@ -174,48 +178,75 @@ nav
       width 7em
 
   ul
-    display grid
-    grid-template-columns repeat(auto-fill, minmax(10em, 1fr))
+    align-items center
+    display flex
+    flex-flow row wrap
+    justify-content center
     list-style-type none
 
     & > li
-      align-items stretch
       border-radius 0.2em
-      display flex
-      flex-flow column
-      justify-content flex-start
-      gap 0.2em
+      display grid
+      flex 0 0 auto
+      grid-template-rows 10em 1.5em 1.5em
+      grid-template-columns 10em 11em
+      height 14em
+      width 11em
       padding 0.5em
 
       .art
-        height 9em
-        width 9em
+        grid-column 1 / span 1
+        grid-row 1 / span 1
+        height 10em
+
+      .title
+        align-self end
+        grid-column 1 / span 1
+        grid-row 2 / span 1
+      
+      .artist
+        align-self end
+        grid-column 1 / span 1
+        grid-row 3 / span 1
       
       .buttons
+        align-self end
         display flex
-        font-size 1.618em
-        gap 0.618em
         justify-content flex-start
+        line-height 1
 
-        span:hover
-          cursor pointer
+        button
+          font-size 1.5em
 
       &.active
         background #444
+        width 22em
 
       &.single
         .art
           background transparent
           border solid 2px #bdf
 
-  ol.tracks
-    list-style-type none
+      ol.items
+        font-size 0.9em
+        grid-column 2 / span 1
+        grid-row 1 / span 1
+        list-style-type none
+        overflow-x hidden
+        overflow-y scroll
+        padding 0.1em 0 0.1em 0.3em
 
-    .track
-      padding 0.1em 0.5em
+        li
+          padding-left 0.2em
+          white-space nowrap
 
-      &:nth-child(odd)
-        background #333
+          &:nth-child(odd)
+            background #333
+
+      ul.buttons
+        grid-column 2 / span 1
+        grid-row 2 / span 2
+        list-style-type none
 
 .playlists
   display flex
